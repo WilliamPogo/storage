@@ -42,6 +42,9 @@ TOTAL = round(t, 3)
 # corrected caption words; when counts differ, spread the corrected words evenly.
 for s in segs:
     cap = s["words"].split()
+    if not cap:  # a silent showcase shot
+        s["timed"] = []
+        continue
     src = [w for w in words if s["in"] - 0.1 <= w["start"] < s["out"]]
     if len(src) == len(cap) and not s.get("spread"):
         times = [(w["start"], w["end"]) for w in src]
@@ -186,6 +189,16 @@ for si, s_ in enumerate(segs):
     el("div", tid, s_["start"], s_["len"], 4, "hook", "", f'<div id="{tid}i" class="{cls}">{s_["title"]}</div>', 'dir="rtl"')
     js.append(f'tl.fromTo("#{tid}i", {{ scale: 1.6, opacity: 0, rotation: -8 }}, {{ scale: 1, opacity: 1, rotation: -3, duration: 0.3, ease: "back.out(2)" }}, {s_["start"]:.3f});')
 
+# Flavour labels on the showcase shots: slam in big, with a whoosh.
+for si, s_ in enumerate(segs):
+    if not s_.get("label"):
+        continue
+    lid = f"label{si}"
+    el("div", lid, s_["start"], s_["len"], 4, "hook", "",
+       f'<div id="{lid}i" class="label" style="background: {s_.get("label_color", "#FFE600")};">{s_["label"]}</div>', 'dir="rtl"')
+    js.append(f'tl.fromTo("#{lid}i", {{ scale: 2.4, opacity: 0, rotation: 10 }}, {{ scale: 1, opacity: 1, rotation: -4, duration: 0.28, ease: "expo.out" }}, {s_["start"]:.3f});')
+    sfx.append((f"whl{si}", "assets/sfx/whoosh.wav", max(0, s_["start"] - 0.1), 0.3))
+
 # Flash and whoosh from the cold open into the video proper.
 cut = segs[1]["start"]
 el("div", "flash", cut, 0.25, 6, "flash", "", "")
@@ -246,6 +259,9 @@ page = f"""<!doctype html>
       .hook {{ position: absolute; left: 0; right: 0; top: 190px; text-align: center; }}
       .hookin {{ display: inline-block; font-weight: 900; font-size: 84px; color: #000; background: #FFE600;
                  padding: 18px 44px 24px; border-radius: 28px; box-shadow: 0 10px 0 #000; }}
+      .label {{ display: inline-block; font-weight: 900; font-size: 120px; color: #fff; padding: 14px 54px 26px;
+                border-radius: 36px; border: 8px solid #000; box-shadow: 0 12px 0 #000;
+                -webkit-text-stroke: 12px #000; paint-order: stroke fill; }}
       .flash {{ position: absolute; inset: 0; background: #fff; opacity: 0; }}
       .hookin.two {{ font-size: 72px; line-height: 1.15; }}
       .hookin.pink {{ background: #FF2D78; color: #fff; }}
