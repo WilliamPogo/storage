@@ -30,6 +30,14 @@ if [ ! -f "$MODEL_DIR/model.bin" ]; then
   rm -rf "$tmp"
 fi
 
+# 3b. ivrit.ai Hebrew model: much more accurate for Hebrew. Needs huggingface.co
+#     in the environment's allowed domains; skipped quietly when it is blocked.
+IVRIT_DIR="$HOME/models/ivrit-large-v3-turbo-ct2"
+if [ ! -f "$IVRIT_DIR/model.bin" ]; then
+  python3 -c "from huggingface_hub import snapshot_download; snapshot_download('ivrit-ai/whisper-large-v3-turbo-ct2', local_dir='$IVRIT_DIR')" \
+    >/dev/null 2>&1 || echo "note: huggingface.co unreachable, using Whisper small"
+fi
+
 # 4. GSAP and Hebrew fonts, vendored locally: cdn.jsdelivr.net is blocked here.
 #    Copy vendor/ into each video project and reference vendor/gsap.min.js.
 here="$(cd "$(dirname "$0")" && pwd)"

@@ -13,7 +13,12 @@ import sys
 import numpy as np
 from faster_whisper import WhisperModel
 
-MODEL_DIR = os.environ.get("WHISPER_MODEL_DIR", os.path.expanduser("~/models/whisper-small-ct2"))
+# Prefer the ivrit.ai Hebrew model (needs huggingface.co); fall back to Whisper small from npm.
+IVRIT_DIR = os.path.expanduser("~/models/ivrit-large-v3-turbo-ct2")
+SMALL_DIR = os.path.expanduser("~/models/whisper-small-ct2")
+MODEL_DIR = os.environ.get("WHISPER_MODEL_DIR") or (
+    IVRIT_DIR if os.path.exists(os.path.join(IVRIT_DIR, "model.bin")) else SMALL_DIR
+)
 
 
 def load_audio(path):
