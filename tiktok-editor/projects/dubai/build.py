@@ -110,7 +110,7 @@ for si, s in enumerate(segs):
         _, lines = caption_box(text_all, 0)
         h = LINE_H * lines
         tops = [(SAFE_BOTTOM - h, 0), (1110, 6000)]
-        if not (si == 0 or si == len(segs) - 1 or s.get("flavors")):
+        if not (s.get("title") or si == len(segs) - 1 or s.get("flavors")):
             tops.append((250, 60000))
         # Jumping between top and bottom is hard to read: changing position costs extra.
         top = pick(det, [(caption_box(text_all, y)[0], pen + (40000 if prev_top and abs(y - prev_top) > 300 else 0), y)
@@ -177,10 +177,20 @@ for si, s in enumerate(segs):
         w = next(w for w in s["timed"] if w["text"] == s["punch"])
         sfx.append((f"wh{si}", "assets/sfx/whoosh.wav", max(0, w["start"] - 0.12), 0.25))
 
-# Hook title over the opening segment.
-s0 = segs[0]
-el("div", "hook", 0.0, s0["len"], 4, "hook", "", '<div id="hooki" class="hookin">דובי כי זה דובאי 🧸</div>', 'dir="rtl"')
-js.append('tl.fromTo("#hooki", { scale: 1.6, opacity: 0, rotation: -8 }, { scale: 1, opacity: 1, rotation: -3, duration: 0.3, ease: "back.out(2)" }, 0.0);')
+# Title banners: the hook question, the pun, the winner reveal.
+for si, s_ in enumerate(segs):
+    if not s_.get("title"):
+        continue
+    tid = f"title{si}"
+    cls = "hookin " + s_.get("title_class", "") + (" two" if "<br>" in s_["title"] else "")
+    el("div", tid, s_["start"], s_["len"], 4, "hook", "", f'<div id="{tid}i" class="{cls}">{s_["title"]}</div>', 'dir="rtl"')
+    js.append(f'tl.fromTo("#{tid}i", {{ scale: 1.6, opacity: 0, rotation: -8 }}, {{ scale: 1, opacity: 1, rotation: -3, duration: 0.3, ease: "back.out(2)" }}, {s_["start"]:.3f});')
+
+# Flash and whoosh from the cold open into the video proper.
+cut = segs[1]["start"]
+el("div", "flash", cut, 0.25, 6, "flash", "", "")
+js.append(f'tl.fromTo("#flash", {{ opacity: 0.85 }}, {{ opacity: 0, duration: 0.22, ease: "power2.out" }}, {cut:.3f});')
+sfx.append(("whcut", "assets/sfx/whoosh.wav", max(0, cut - 0.15), 0.3))
 
 # Flavor chips during the flavor list.
 fs = next(s for s in segs if s.get("flavors"))
@@ -233,9 +243,11 @@ page = f"""<!doctype html>
       .w.hl {{ color: #FFE600; }}
       .emo {{ position: absolute; width: 200px; height: 200px; }}
       .emoin {{ font-family: "Noto Color Emoji"; font-size: 150px; line-height: 200px; text-align: center; filter: drop-shadow(0 8px 10px rgba(0,0,0,.4)); }}
-      .hook {{ position: absolute; left: 0; right: 0; top: 230px; text-align: center; }}
+      .hook {{ position: absolute; left: 0; right: 0; top: 190px; text-align: center; }}
       .hookin {{ display: inline-block; font-weight: 900; font-size: 84px; color: #000; background: #FFE600;
                  padding: 18px 44px 24px; border-radius: 28px; box-shadow: 0 10px 0 #000; }}
+      .flash {{ position: absolute; inset: 0; background: #fff; opacity: 0; }}
+      .hookin.two {{ font-size: 72px; line-height: 1.15; }}
       .hookin.pink {{ background: #FF2D78; color: #fff; }}
       .chip {{ position: absolute; font-weight: 900; font-size: 64px; color: #fff; padding: 10px 36px 16px; border-radius: 999px;
                -webkit-text-stroke: 8px #000; paint-order: stroke fill; border: 6px solid #000; box-shadow: 0 8px 0 #000; }}
