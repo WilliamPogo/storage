@@ -98,12 +98,14 @@ for si, s in enumerate(segs):
 # Video: one wrapper per segment so each cut gets its own framing (jump-cut zoom) and punch-ins.
 vid_wrap_js = []
 for si, s in enumerate(segs):
-    base = 1.0 if si % 2 == 0 else 1.1
+    base = 1.0
     st = s["start"]
     vid_wrap_js.append(f'tl.set("#frame", {{ scale: {base}, x: 0, rotation: 0 }}, {st:.3f});')
     if s.get("punch"):
         w = next(w for w in s["timed"] if w["text"] == s["punch"])
-        vid_wrap_js.append(f'tl.to("#frame", {{ scale: {base + 0.22}, duration: 0.18, ease: "expo.out" }}, {w["start"]:.3f});')
+        vid_wrap_js.append(f'tl.to("#frame", {{ scale: 1.15, duration: 0.18, ease: "expo.out" }}, {w["start"]:.3f});')
+        if w["start"] + 1.3 < st + s["len"]:
+            vid_wrap_js.append(f'tl.to("#frame", {{ scale: {base}, duration: 0.35, ease: "power2.inOut" }}, {w["start"] + 0.9:.3f});')
     if s.get("shake"):
         w = next(w for w in s["timed"] if w["text"] == s["shake"])
         vid_wrap_js.append(f'tl.to("#frame", {{ keyframes: [{{x: -28, rotation: -1.5}}, {{x: 24, rotation: 1.2}}, {{x: -16, rotation: -0.8}}, {{x: 10, rotation: 0.5}}, {{x: 0, rotation: 0}}], duration: 0.4, ease: "none" }}, {w["start"]:.3f});')
@@ -176,13 +178,13 @@ page = f"""<!doctype html>
       html, body {{ width: 1080px; height: 1920px; overflow: hidden; background: #000; }}
       body {{ font-family: "Rubik", "Noto Color Emoji", sans-serif; }}
       #stage {{ position: absolute; inset: 0; overflow: hidden; }}
-      #frame {{ position: absolute; inset: 0; transform-origin: 50% 35%; }}
+      #frame {{ position: absolute; inset: 0; transform-origin: 50% 30%; }}
       #aroll {{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }}
       #captions {{ position: absolute; inset: 0; }}
       .cap {{ position: absolute; left: 0; right: 0; top: {CAPTION_TOP}px; padding: 0 90px; text-align: center; overflow: visible; }}
       .capin {{ display: inline-block; font-weight: 900; font-size: 96px; line-height: 1.15; color: #fff;
                -webkit-text-stroke: 14px #000; paint-order: stroke fill; text-shadow: 0 8px 0 rgba(0,0,0,.55); }}
-      .w {{ display: inline-block; margin: 0 14px; }}
+      .w {{ display: inline-block; margin: 0 20px; }}
       .w.hl {{ color: #FFE600; }}
       .emo {{ position: absolute; width: 200px; height: 200px; }}
       .emoin {{ font-family: "Noto Color Emoji"; font-size: 150px; line-height: 200px; text-align: center; filter: drop-shadow(0 8px 10px rgba(0,0,0,.4)); }}
