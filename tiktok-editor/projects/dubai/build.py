@@ -3,6 +3,7 @@
 Usage: python3 build.py <proj_dir>
 """
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +14,9 @@ segs = json.loads((build / "segments.json").read_text())
 words = json.loads((proj / "words.json").read_text())
 
 WORDS_PER_GROUP = 3
+MAX_CHARS = 14
 CAPTION_TOP = 1110
+W_ = 1080
 FLAVOR_COLORS = {"פקאן": "#C47A3A", "מנגו": "#FFB000", "דובאי": "#3FA34D", "פסיפלורה": "#9B4DFF"}
 
 
@@ -57,6 +60,24 @@ html = []
 js = []
 gid = 0
 
+sys.path.insert(0, str(Path(__file__).parent))
+from place import Detector, pick  # noqa: E402
+
+det = Detector(proj / "clip" / "assets" / "aroll.mp4")
+LINE_H = 118
+SAFE_BOTTOM = 1330  # TikTok's caption/handle area starts below this
+
+
+def caption_box(text, top):
+    width = min(900, len(text) * 50 + 40 * text.count(" ") + 60)
+    lines = math.ceil((len(text) * 50 + 40 * text.count(" ")) / 900) or 1
+    return (540 - width / 2, top, 540 + width / 2, top + LINE_H * lines), lines
+
+
+busy_top = []  # windows when a title or chips own the top of the frame
+prev_top = None
+cap_boxes = []  # (start, end, box) of every placed caption, so emojis avoid them
+
 
 def el(tag, id_, start, duration, track, cls="", style="", body="", extra=""):
     html.append(f'<{tag} id="{id_}" class="clip {cls}" data-start="{start:.3f}" data-duration="{duration:.3f}" '
@@ -70,6 +91,10 @@ for si, s in enumerate(segs):
     group = []
     groups = []
     for w in s["timed"]:
+        # Keep every group on one line: start a new group when this word would overflow it.
+        if group and len(" ".join(x["text"] for x in group + [w])) > MAX_CHARS:
+            groups.append(group)
+            group = []
         group.append(w)
         if len(group) >= WORDS_PER_GROUP or w["text"][-1] in ".?":
             groups.append(group)
@@ -81,6 +106,17 @@ for si, s in enumerate(segs):
         end = groups[gi + 1][0]["start"] - 0.04 if gi + 1 < len(groups) else s["start"] + s["len"] - 0.02
         start = max(start, s["start"] + 0.02)
         gid_ = f"cap{gid}"
+        text_all = " ".join(w["text"] for w in g)
+        _, lines = caption_box(text_all, 0)
+        h = LINE_H * lines
+        tops = [(SAFE_BOTTOM - h, 0), (1110, 6000)]
+        if not (si == 0 or si == len(segs) - 1 or s.get("flavors")):
+            tops.append((250, 60000))
+        # Jumping between top and bottom is hard to read: changing position costs extra.
+        top = pick(det, [(caption_box(text_all, y)[0], pen + (40000 if prev_top and abs(y - prev_top) > 300 else 0), y)
+                         for y, pen in tops], start, end)
+        prev_top = top
+        cap_boxes.append((start, end, caption_box(text_all, top)[0]))
         spans = []
         for wi, w in enumerate(g):
             wid = f"{gid_}w{wi}"
@@ -91,7 +127,7 @@ for si, s in enumerate(segs):
             if wi + 1 < len(g):
                 js.append(f'tl.to("#{wid}", {{ color: "{"#FFE600" if k else "#FFFFFF"}", scale: 1, duration: 0.1 }}, {g[wi + 1]["start"]:.3f});')
         cap_html.append(f'<div id="{gid_}" class="clip cap" dir="rtl" data-start="{start:.3f}" data-duration="{end - start:.3f}" '
-                        f'data-track-index="2"><div class="capin" id="{gid_}i">{" ".join(spans)}</div></div>')
+                        f'data-track-index="2" style="top: {top}px;"><div class="capin" id="{gid_}i">{" ".join(spans)}</div></div>')
         js.append(f'tl.fromTo("#{gid_}i", {{ scale: 0.6, y: 30, opacity: 0 }}, {{ scale: 1, y: 0, opacity: 1, duration: 0.16, ease: "back.out(2.5)" }}, {start:.3f});')
         gid += 1
 
@@ -119,9 +155,18 @@ for si, s in enumerate(segs):
     at = next((w["start"] for w in s["timed"] if clean(w["text"]) in hl), s["timed"][0]["start"])
     end = s["start"] + s["len"]
     eid = f"emo{si}"
-    left = si % 2 == 0
+    cands = []
+    for side in ("left", "right"):
+        x0 = 70 if side == "left" else W_ - 270
+        for y, pen in ((860, 0), (700, 2000), (560, 6000), (1000, 6000), (420, 12000)):
+            box = (x0, y, x0 + 200, y + 200)
+            clash = sum(5 * max(0, min(box[2], b[2]) - max(box[0], b[0])) * max(0, min(box[3], b[3]) - max(box[1], b[1]))
+                        for cs, ce, b in cap_boxes if cs < end and ce > at)
+            cands.append((box, pen + clash + (0 if (side == "left") == (si % 2 == 0) else 1500), (side, y)))
+    side, ey = pick(det, cands, at, end)
+    left = side == "left"
     pos = "left: 70px;" if left else "right: 70px;"
-    el("div", eid, at, end - at, 3, "emo", f"{pos} top: 860px;", f'<div class="emoin" id="{eid}i">{s["emoji"]}</div>')
+    el("div", eid, at, end - at, 3, "emo", f"{pos} top: {ey}px;", f'<div class="emoin" id="{eid}i">{s["emoji"]}</div>')
     js.append(f'tl.fromTo("#{eid}i", {{ scale: 0, rotation: {-25 if left else 25} }}, {{ scale: 1, rotation: {-8 if left else 8}, duration: 0.35, ease: "back.out(3)" }}, {at:.3f});')
     js.append(f'tl.to("#{eid}i", {{ y: -14, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: {max(0, int((end - at - 0.5) / 0.5))} }}, {at + 0.35:.3f});')
     sfx.append((f"pop{si}", "assets/sfx/pop.wav", at, 0.35))
