@@ -48,4 +48,18 @@ if [ ! -f "$here/vendor/gsap.min.js" ]; then
   cp "$here"/node_modules/@fontsource/{rubik,heebo,secular-one}/files/*-hebrew-*-normal.woff2 "$here/vendor/fonts/"
 fi
 
+# 5. Plate blurring and caption placement: detection, tracking, Drive downloads.
+python3 -c "import cv2; cv2.TrackerCSRT_create" 2>/dev/null || {
+  pip uninstall -y -q opencv-python opencv-python-headless 2>/dev/null || true
+  pip install -q opencv-contrib-python-headless
+}
+python3 -c "import ultralytics, onnxruntime, mediapipe, gdown" 2>/dev/null || pip install -q ultralytics onnxruntime mediapipe gdown
+mkdir -p "$HOME/models/plate" "$HOME/models/mp"
+[ -f "$HOME/models/plate/plate-m.onnx" ] || curl -sSfL -o "$HOME/models/plate/plate-m.onnx" \
+  https://huggingface.co/morsetechlab/yolov11-license-plate-detection/resolve/main/license-plate-finetune-v1m.onnx || true
+[ -f "$HOME/models/mp/hand_landmarker.task" ] || curl -sSfL -o "$HOME/models/mp/hand_landmarker.task" \
+  https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task || true
+[ -f "$HOME/models/mp/blaze_face_short_range.tflite" ] || curl -sSfL -o "$HOME/models/mp/blaze_face_short_range.tflite" \
+  https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite || true
+
 echo "tiktok-editor: ready"
